@@ -13,7 +13,7 @@ from schema.schema import SubMenu as SchemaSubMenu
 from schema.schema import Dishes as SchemaDishes
 
 # Загрузка переменных окружения из файла .env
-load_dotenv('.env')
+load_dotenv('example.env')
 # Создаём экземпляр объекта FastAPI
 app = FastAPI()
 # Инициализиурем экземпляр объекта FastAPI
