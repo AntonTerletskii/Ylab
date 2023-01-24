@@ -2,7 +2,7 @@ import os
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi_sqlalchemy import DBSessionMiddleware, db
 
 from model.Yentities import Menu as ModelMenu
@@ -27,24 +27,26 @@ app.add_middleware(DBSessionMiddleware, db_url=os.environ['DATABASE_URL'])
 @app.get('/api/v1/menus')
 def get_all_menus():
     """Просматривает список меню"""
-    menus = db.session.query(ModelMenu).all()
-    return menus
+    # menus = db.session.query(ModelMenu).all()
+    return [SchemaMenu.from_orm(x) for x in db.session.query(ModelMenu).all()]
 
 
 @app.get("/api/v1/menus/{target_menu_id}")
 def get_one_menu(target_menu_id: int):
     """Просматривает определенное меню"""
     one_menu = db.session.query(ModelMenu).get(target_menu_id)
-    return one_menu
+    if one_menu is None:
+        raise HTTPException(status_code=404, detail="menu not found")
+    return SchemaMenu.from_orm(one_menu)
 
 
-@app.post('/api/v1/menus', response_model=SchemaMenu)
+@app.post('/api/v1/menus', response_model=SchemaMenu, status_code=201)
 def create_menu(menu: SchemaMenu):
     """Создает меню"""
     db_menu = ModelMenu(title=menu.title, description=menu.description)
     db.session.add(db_menu)
     db.session.commit()
-    return db_menu
+    return SchemaMenu.from_orm(db_menu)
 
 
 @app.patch("/api/v1/menus/{target_menu_id}", response_model=SchemaMenu)
@@ -54,7 +56,7 @@ def update_menu(menu: SchemaMenu, target_menu_id: int):
     if db_menu_query is not None:
         db_menu_query.update({'title': menu.title, 'description': menu.description}, synchronize_session='evaluate')
         db.session.commit()
-    return db.session.query(ModelMenu).get(target_menu_id)
+    return SchemaMenu.from_orm(db.session.query(ModelMenu).get(target_menu_id))
 
 
 @app.delete("/api/v1/menus/{target_menu_id}")
@@ -70,7 +72,7 @@ def delete_menu(target_menu_id: int):
 def get_all_sub_menus(target_menu_id: int):
     """Просматривает список подменю строго определенного меню, задаваемого идентификатором target_menu_id"""
     sub_menus = db.session.query(ModelSubMenu).filter(ModelSubMenu.menu_id == target_menu_id).all()
-    return sub_menus
+    return [SchemaSubMenu.from_orm(x) for x in sub_menus]
 
 
 @app.get("/api/v1/menus/{target_menu_id}/submenus/{target_submenu_id}")
@@ -78,19 +80,21 @@ def get_one_sub_menu(target_menu_id: int, target_submenu_id: int):
     """Просматривает определенное подменю"""
     one_sub_menu = db.session.query(ModelSubMenu).filter(ModelSubMenu.menu_id == target_menu_id, ModelSubMenu.id ==
                                                          target_submenu_id).one_or_none()
-    return one_sub_menu
+    if one_sub_menu is None:
+        raise HTTPException(status_code=404, detail="submenu not found")
+    return SchemaSubMenu.from_orm(one_sub_menu)
 
 
-@app.post('/api/v1/menus/{target_menu_id}/submenus', response_model=SchemaSubMenu)
+@app.post('/api/v1/menus/{target_menu_id}/submenus', response_model=SchemaSubMenu, status_code=201)
 def create_sub_menu(sub_menu: SchemaSubMenu, target_menu_id: int):
     """Создает подменю"""
     db_sub_menu = ModelSubMenu(title=sub_menu.title, description=sub_menu.description, menu_id=target_menu_id)
     db.session.add(db_sub_menu)
     db.session.commit()
-    return db_sub_menu
+    return SchemaSubMenu.from_orm(db_sub_menu)
 
 
-@app.patch("/api/v1/menus/{target_menu_id}/submenus/{target_submenu_id}", response_model=SchemaSubMenu)
+@app.patch("/api/v1/menus/{target_menu_id}/submenus/{target_submenu_id}")
 def update_sub_menu(sub_menu: SchemaMenu, target_menu_id: int, target_submenu_id: int):
     """Обновляет определенное подменю с идентификатором равным target_menu_id"""
     db_sub_menu_query = db.session.query(ModelSubMenu).filter(ModelSubMenu.menu_id == target_menu_id, ModelSubMenu.id ==
@@ -99,7 +103,7 @@ def update_sub_menu(sub_menu: SchemaMenu, target_menu_id: int, target_submenu_id
         db_sub_menu_query.update({'title': sub_menu.title, 'description': sub_menu.description},
                                  synchronize_session='evaluate')
         db.session.commit()
-    return db.session.query(ModelSubMenu).get(target_submenu_id)
+    return SchemaSubMenu.from_orm(db.session.query(ModelSubMenu).get(target_submenu_id))
 
 
 @app.delete("/api/v1/menus/{target_menu_id}/submenus/{target_submenu_id}")
@@ -120,28 +124,31 @@ def delete_sub_menu(target_menu_id: int, target_submenu_id: int):
 def get_all_dishes(target_menu_id: int, target_submenu_id: int):
     """Просматривает список блюд"""
     sub_dishes = db.session.query(ModelDishes).filter(ModelDishes.sub_menu_id == target_submenu_id).all()
-    return sub_dishes
+    return [SchemaDishes.from_orm(x) for x in sub_dishes]
 
 
-@app.get("/api/v1/menus/{target_menu_id}/submenus/{target_submenu_id}/dishes/{target_dish_id}")
+@app.get("/api/v1/menus/{target_menu_id}/submenus/{target_submenu_id}/dishes/{target_dish_id}",
+         response_model=SchemaDishes)
 def get_one_dish(target_menu_id: int, target_submenu_id: int, target_dish_id: int):
     """Просматривает определенное блюдо"""
     dish = db.session.query(ModelDishes).get(target_dish_id)
-    return dish
+    if dish is None:
+        raise HTTPException(status_code=404, detail="dish not found")
+    return SchemaDishes.from_orm(dish)
 
 
-@app.post('/api/v1/menus/{target_menu_id}/submenus/{target_submenu_id}/dishes', response_model=SchemaDishes)
+@app.post('/api/v1/menus/{target_menu_id}/submenus/{target_submenu_id}/dishes', response_model=SchemaDishes,
+          status_code=201)
 def create_dishes(dish: SchemaDishes, target_menu_id: int, target_submenu_id: int):
     """Создает блюдо"""
     db_dishes = ModelDishes(title=dish.title, description=dish.description, price=dish.price,
                             sub_menu_id=target_submenu_id)
     db.session.add(db_dishes)
     db.session.commit()
-    return db_dishes
+    return SchemaDishes.from_orm(db_dishes)
 
 
-@app.patch("/api/v1/menus/{target_menu_id}/submenus/{target_submenu_id}/dishes/{target_dish_id}",
-           response_model=SchemaDishes)
+@app.patch("/api/v1/menus/{target_menu_id}/submenus/{target_submenu_id}/dishes/{target_dish_id}")
 def update_dishes(dishes: SchemaDishes, target_menu_id: int, target_submenu_id: int, target_dish_id: int):
     """Обновляет определенное блюдо с идентификатором равным target_menu_id"""
     db_dishes = db.session.query(ModelDishes).filter(ModelDishes.sub_menu_id == target_submenu_id, ModelDishes.id ==
@@ -150,14 +157,14 @@ def update_dishes(dishes: SchemaDishes, target_menu_id: int, target_submenu_id: 
         db_dishes.update({'title': dishes.title, 'description': dishes.description, 'price': dishes.price},
                          synchronize_session='evaluate')
         db.session.commit()
-    return db.session.query(ModelDishes).get(target_dish_id)
+    return SchemaDishes.from_orm(db.session.query(ModelDishes).get(target_dish_id))
 
 
 @app.delete("/api/v1/menus/{target_menu_id}/submenus/{target_submenu_id}/dishes/{target_dish_id}")
 def delete_dish(target_menu_id: int, target_submenu_id: int, target_dish_id: int):
     """Удаляет определенное блюдо"""
     db_dish_query = db.session.query(ModelDishes).filter(ModelDishes.sub_menu_id == target_submenu_id, ModelDishes.id ==
-                                                   target_dish_id)
+                                                         target_dish_id)
     db_dish_query.delete(synchronize_session='evaluate')
     db.session.commit()
 

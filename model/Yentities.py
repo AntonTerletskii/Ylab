@@ -18,6 +18,19 @@ class Menu(Base):
     description = Column(String(500), nullable=True)
     sub_menus = relationship("SubMenu", uselist=True)
 
+    @property
+    def submenus_count(self):
+        return len(self.sub_menus)
+
+    @property
+    def dishes_count(self):
+        # Я зашёл в подъезд
+        # Буду перебирать каждую квартиру в цикле
+        sum_of_dishes = 0
+        for sub_menu in self.sub_menus:
+            sum_of_dishes = sum_of_dishes + len(sub_menu.dishes)
+        return sum_of_dishes
+
 
 class SubMenu(Base):
     """Сущность подменю
@@ -30,6 +43,11 @@ class SubMenu(Base):
     menu_id = Column(Integer, ForeignKey("{}.menu.id".format(SCHEMA_NAME)))
     title = Column(String(100), nullable=False)
     description = Column(String(500), nullable=True)
+    dishes = relationship("Dishes", uselist=True)
+
+    @property
+    def dishes_count(self):
+        return len(self.dishes)
 
 
 class Dishes(Base):
