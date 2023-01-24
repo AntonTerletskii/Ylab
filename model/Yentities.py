@@ -24,8 +24,6 @@ class Menu(Base):
 
     @property
     def dishes_count(self):
-        # Я зашёл в подъезд
-        # Буду перебирать каждую квартиру в цикле
         sum_of_dishes = 0
         for sub_menu in self.sub_menus:
             sum_of_dishes = sum_of_dishes + len(sub_menu.dishes)
